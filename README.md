@@ -4,8 +4,8 @@
 
 1. Clone this repository.
 2. Create a new branch called "candidate/${your lastname}".
-3. Create a folder for one or both options listed below (bonus points completing both).
-4. Complete the assignments.
+3. Create a folder for one or both options listed below (bonus points for completing both).
+4. Complete the assignments under the respective folders.
 5. Check code into the branch and push to remote.
 6. Create a pull request for review.
    
