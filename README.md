@@ -1,5 +1,17 @@
 # BDR Team Interview Home Assignments
 
+## Instructions
+
+1. Clone this repository
+2. Create a new branch called "candidate/${your lastname}"
+3. Create a folder for one or both options listed below (bonus points completing both)
+4. Complete the assignments 
+5. Check code into the branch and push to remote.
+   
+**Please check in your work regardless whether you've correctly completed the assignment, for you will be expected to walkthrough your thought process with the interviewing team**
+
+#
+
 ## Option 1 - Dictionary
 
 A dictionary consists of english words stored in memory.
