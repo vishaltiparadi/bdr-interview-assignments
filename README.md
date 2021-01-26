@@ -9,7 +9,7 @@
 5. Check code into the branch and push to remote.
 6. Create a pull request for review.
    
-**Please check in your work regardless whether you've correctly completed the assignment, for you will be expected to walkthrough your thought process with the interviewing team**
+Note: **Please check in your work regardless whether you've correctly completed the assignment, for you will be expected to walkthrough your thought process with the interviewing team**
 
 #
 
