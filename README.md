@@ -29,7 +29,7 @@ The command should be invoked as following:
 dict {insert|search|delete} <word>
 ```
 
-Languages to chose from: C, C++ or python (no 3rd party libraries)
+Languages to chose from: C or C++ (no 3rd party libraries)
 
 
 ## Option 2 - Distributed Deadlock Detector
