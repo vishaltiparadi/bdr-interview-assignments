@@ -16,7 +16,9 @@ The command should be invoked as following:
 dict {insert|search|delete} <word>
 ```
 
-Languages to chose from: C or C++ (no 3rd party libraries)
+Languages to chose from: C or C++
+Assume APIs for data structures like queue, hash table, linked list etc. are available.
+Document the APIs (no implementation required) as comments.
 
 
 ## Option 2 - Distributed Deadlock Detector
@@ -43,3 +45,5 @@ queryId on all nodes. Object names are unique across cluster.
 You can assume max 1000 nodes and max 1000 queries on each node.
 
 Languages to chose from: C, C++, Python, Perl, nodejs, SQL
+Assume APIs for data structures like queue, hash table, linked list etc. are available.
+Document the APIs (no implementation required) as comments.
