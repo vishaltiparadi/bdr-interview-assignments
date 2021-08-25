@@ -1,150 +1,229 @@
 #include <iostream>
-#include <set>
-#include <cstring>
-using namespace std;
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mutex>
+using namespace std;
 
-#define BUF_SIZE (1000000 * 255)
-#define MAX_WORDS 1000000
+#define WORD_SIZE (sizeof(char)+255)
+#define SHM_SIZE (sizeof(int) + (WORD_SIZE * 1000000))
+#define SHM_NAME "dictionary"
 
-struct shmseg {
-   int cnt;
-   int complete;
-   char buf[BUF_SIZE];
-};
+#define INSERT 1
+#define SEARCH 2
+#define DELETE 3
+#define EXIT   4
 
-static uint_least32_t wordCount;
-set<string>* dictPtr;
-int shmid;
+#define TRUE '1'
+#define FALSE '0'
 
-/*
- * Boost IPC calls can very well be used to
- * implement shared memory logic.
- */
-set<string>* sharedMemory()
+int count = 0;
+char *headShmPtr = NULL;
+char word[255];
+char wordDeleted = FALSE;
+char* tempPtr = NULL;
+
+mutex ilock;
+mutex slock;
+mutex dlock;
+
+bool searchDictionary(char* head, char* str);
+void addData2Shm(char* head, char* str);
+int createSharedMemory();
+int getCmdArgs(int argc, char* argv[]);
+bool remWordFromDict(char* head, char* str);
+
+void addData2Shm(char* head, char* str)
 {
-   set<string>* setshmPtr;
-   struct shmseg *shmp;
-
-   key_t key = ftok("shmfile",65);
-
-   shmid = shmget(key, BUF_SIZE, 0666|IPC_CREAT);
-   if (shmid == -1) {
-      perror("Shared memory shmget error");
-      return NULL;
-   }
-
-   // Attach to the segment to get a pointer to it.
-   shmp = (struct shmseg *) shmat(shmid, NULL, 0);
-   if (shmp == (void *) -1) {
-      perror("Shared memory attach");
-      return NULL;
-   }
-   setshmPtr = new(shmp) set<string>;
-   return setshmPtr;
-}
-
-void usage()
-{
-    cout << "dict {insert|search|delete} word" << endl;
-}
-
-bool searchWord(string word)
-{
-    bool found = false;
-    auto itr = (*dictPtr).find(word);
-    if(itr != (*dictPtr).end())
+    char* sPtr = head;
+    int tempCount = count;
+    bool slotExists = false;
+    if(!searchDictionary(sPtr, str))
     {
-        cout << "Input word: " << word << " found in dictionary." << endl;
-        found = true;
+        lock_guard<mutex> isrt(ilock);
+        wordDeleted =  FALSE;
+        sPtr = head;
+        while(tempCount > 0)
+        {
+            if(*(sPtr+255) == TRUE)
+            {
+                slotExists = true;
+                break;
+            }
+            sPtr = sPtr + WORD_SIZE;
+            tempCount --;
+
+        }
+
+        if(slotExists)
+        {
+            head = sPtr;
+        }
+        else
+        {
+            head = head + (count*WORD_SIZE);
+        }
+
+        sprintf(headShmPtr,"%d",++count);
+        memset(head, 0x00, WORD_SIZE);
+        memcpy(head, str,strlen(str));
+        *(head+strlen(str)) = '\0';
+        *(head+255) = FALSE;
+        cout << "Word " << str << " inserted in dictionary." << endl;
     }
-    else
+}
+
+bool searchDictionary(char* head, char* str)
+{
+    int tempCount = count;
+    tempPtr = head;
+    bool found = false;
+
+    lock_guard<mutex> srch(slock);
+    while(tempCount > 0)
     {
-        cout << "Input word: " << word << " not found in dictionary." << endl;
+        if( memcmp(tempPtr, str, strlen(str)) != 0 )
+        {
+            tempPtr = tempPtr + WORD_SIZE;
+        }
+        else
+        {
+            wordDeleted = *(tempPtr+255);
+            if(wordDeleted == TRUE)
+            {
+                break;
+            }
+
+            cout << "Word " << str << " found in dictionary." << endl;
+            found = true;
+            break;
+        }
+        tempCount --;
+    }
+
+    if(!found)
+    {
+        cout << "Word " << str << " not found in dictionary." << endl;
     }
 
     return found;
 }
 
-bool insertWord(string word)
+bool remWordFromDict(char* head, char* str)
 {
-    bool found = searchWord(word);
-    pair<set<string>::iterator, bool> iw;
-    bool retVal = false;
-
-    if(found)
+    bool deleted = false;
+    if(searchDictionary(head, str))
     {
-        cout << "Input word: " << word << " already present in dictionary." << endl;
+        head = tempPtr;
+        lock_guard<mutex> dlte(dlock);
+
+        memset(head, 0x00, WORD_SIZE);
+        *(head+255) = TRUE;
+        cout << "Word " << str << " deleted from dictionary." << endl;
+        deleted = true;
     }
     else
     {
-        if (wordCount >= MAX_WORDS)
-        {
-            cout << "Dictionary is full. Cannot insert any more words!" << endl;
-        }
-        else
-        {
-            iw = (*dictPtr).insert(word);
-            if(iw.second)
-            {
-                cout << "Input word: " << word << " inserted in dictionary." << endl;
-                wordCount ++;
-                retVal = true;
-            }
-        }
+        cout << "Word " << str << " not found in dictionary." << endl;
     }
-    return retVal;
+    return deleted;
 }
 
-bool deleteWord(string word)
+int createSharedMemory()
 {
-    size_t count;
-    bool retVal = false;
-    if (searchWord(word))
+    // ftok to generate unique key
+    key_t key = ftok(SHM_NAME,811);
+
+    // shmget returns an identifier in shmid
+    int shmid = shmget(key,SHM_SIZE,0666|IPC_CREAT);
+    if (shmid < 0)
     {
-        count = (*dictPtr).erase(word);
+        printf("shmget error\n");
+        exit(1);
     }
 
-    if(count)
-    {
-        cout << "Input word: " << word << " deleted from dictionary." << endl;
-        wordCount --;
-        retVal = true;
-    }
-    return retVal;
+    // shmat to attach to shared memory
+    headShmPtr = (char*) shmat(shmid,(void*)0,0);
+
+    return shmid;
 }
 
-int main(int argc, char** argv)
+int getCmdArgs(int argc, char* argv[])
 {
-    bool retVal = false;
-    if ( (argc > 3) || (argc == 0) )
+    int retCode = 0;
+    if((argc > 3) || (argc < 3))
     {
-        cout << "Too many or too few arguments" << endl;
-        usage();
+        cout << "Too many or too less arguments." << endl;
+        cout << "dictionary {insert|search|delete|exit} <word>" << endl;
     }
     else
     {
-        dictPtr = sharedMemory();
-
-        if ( memcmp(argv[1], "insert", 6) == 0 )
+        if(!memcmp(argv[1], "insert", 6))
         {
-            retVal = insertWord(argv[2]);
+            retCode = 1;
         }
-        else if ( memcmp(argv[1], "search", 6) == 0 )
+        else if(!memcmp(argv[1], "search", 6))
         {
-            retVal = searchWord(argv[2]);
+            retCode = 2;
         }
-        else if ( memcmp(argv[1], "delete", 6) == 0 )
+        else if(!memcmp(argv[1], "delete", 6))
         {
-            retVal = deleteWord(argv[2]);
+            retCode = 3;
+        }
+        else if(!memcmp(argv[1], "exit", 4))
+        {
+            retCode = 4;
         }
         else
         {
-            cout << "Invalid input. Exiting..." << endl;
+            cout << "Invalid command." << endl;
         }
     }
-    cout << endl;
+    if(retCode)
+    {
+        memset(word, 0x00, 255);
+        memcpy(word, argv[2],strlen(argv[2]));
+    }
+    return retCode;
+}
+
+int main(int argc, char *argv[])
+{
+    int argsRc = 0;
+    int shmid = 0;
+    char *shmPtr = NULL;
+
+    shmid = createSharedMemory();
+    shmPtr = headShmPtr;
+
+    count = atoi(shmPtr);
+    shmPtr = shmPtr+sizeof(int);
+
+
+    argsRc = getCmdArgs(argc, argv);
+    switch(argsRc)
+    {
+        case INSERT:
+            addData2Shm(shmPtr, word);
+            break;
+        case SEARCH:
+            searchDictionary(shmPtr, word);
+            break;
+        case DELETE:
+            remWordFromDict(shmPtr, word);
+            break;
+        case EXIT:
+            //detach from shared memory
+            shmdt(headShmPtr);
+
+            // destroy the shared memory
+            shmctl(shmid,IPC_RMID,NULL);
+            break;
+        default:
+            break;
+    }
+
     return 0;
 }
